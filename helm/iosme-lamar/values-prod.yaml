@@ -1,0 +1,44 @@
+# Production overrides for iosme-lamar Helm chart
+# Merged on top of values.yaml at deploy time
+
+replicaCount: 3
+
+image:
+  pullPolicy: Always
+
+ingress:
+  hosts:
+    - host: iosme.lamar.edu
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: iosme-tls
+      hosts:
+        - iosme.lamar.edu
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 1Gi
+  limits:
+    cpu: "4"
+    memory: 4Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+config:
+  logLevel: info
+  inferenceProvider: ollama
+
+database:
+  host: iosme-db-01.lamar.edu
+  name: iosme_prod
+
+pdb:
+  enabled: true
+  minAvailable: 2

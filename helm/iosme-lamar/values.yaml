@@ -1,0 +1,255 @@
+# IOSME — Lamar University Helm Chart Default Values
+# Override these values in values-prod.yaml, values-staging.yaml, or values-dev.yaml
+
+# -- Number of application replicas
+replicaCount: 2
+
+image:
+  repository: registry.lamar.edu/iosme/app
+  pullPolicy: IfNotPresent
+  # -- Image tag; set at deploy time with --set image.tag=<version>
+  tag: "2.5.0"
+
+imagePullSecrets:
+  - name: registry-lamar-edu
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: iosme.lamar.edu
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: iosme-tls
+      hosts:
+        - iosme.lamar.edu
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# -- Node selector for main application pods
+nodeSelector: {}
+
+# -- Tolerations for main application pods
+tolerations: []
+
+# -- Affinity rules for main application pods
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - iosme
+          topologyKey: kubernetes.io/hostname
+
+# Application configuration
+config:
+  # -- Log level: debug, info, warn, error
+  logLevel: info
+  # -- Application port
+  port: 8080
+  # -- Session duration in seconds
+  sessionDurationSeconds: 3600
+  # -- Inference provider: ollama (local GPU) or anthropic (API)
+  inferenceProvider: ollama
+  # -- Anthropic model to use when inferenceProvider=anthropic
+  anthropicModel: claude-3-5-sonnet-20241022
+  # -- Ollama model for LLM inference
+  ollamaLlmModel: llama3.2
+  # -- Ollama model for embeddings
+  ollamaEmbedModel: nomic-embed-text
+  # -- Banner sync interval in hours
+  bannerSyncIntervalHours: 4
+
+# Database configuration (external PostgreSQL)
+database:
+  # -- External PostgreSQL host
+  host: iosme-db-01.lamar.edu
+  port: 5432
+  name: iosme_prod
+  sslMode: require
+  # -- Name of the secret containing username and password
+  credentialsSecret: iosme-db-credentials
+  # -- Secret key for the username
+  usernameKey: username
+  # -- Secret key for the password
+  passwordKey: password
+
+# Audit database configuration
+auditDatabase:
+  host: iosme-db-01.lamar.edu
+  port: 5432
+  name: iosme_audit
+  sslMode: require
+  credentialsSecret: iosme-db-credentials
+
+# Secrets configuration — names of Kubernetes secrets
+secrets:
+  anthropicApiKey: iosme-anthropic-api-key
+  bannerOAuth: iosme-banner-oauth
+  blackboardLti: iosme-blackboard-lti
+  ms365OAuth: iosme-ms365-oauth
+  jwtSigningKey: iosme-jwt-signing-key
+
+# Banner SIS integration
+banner:
+  baseUrl: https://banner.lamar.edu/api
+  apiVersion: v1
+  syncIntervalHours: 4
+  oauth:
+    secretName: iosme-banner-oauth
+    tokenRefreshMarginSeconds: 300
+
+# Blackboard LTI integration
+lti:
+  enabled: true
+  version: "1.3"
+  secretName: iosme-blackboard-lti
+  platformIssuer: https://blackboard.lamar.edu
+  ags:
+    enabled: true
+
+# Microsoft 365 integration
+microsoft365:
+  enabled: true
+  secretName: iosme-ms365-oauth
+  tenantAuthority: https://login.microsoftonline.com/lamar.edu
+  graphBaseUrl: https://graph.microsoft.com/v1.0
+  features:
+    calendarSync: true
+    emailNotifications: true
+    teamsIntegration: true
+
+# Ollama (local GPU inference)
+ollama:
+  enabled: true
+  image:
+    repository: ollama/ollama
+    tag: "0.3.12"
+    pullPolicy: IfNotPresent
+  service:
+    port: 11434
+  resources:
+    requests:
+      cpu: 4
+      memory: 16Gi
+    limits:
+      nvidia.com/gpu: 1
+      memory: 48Gi
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  nodeSelector:
+    node-role.iosme/gpu: "true"
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 200Gi
+    accessMode: ReadWriteOnce
+  models:
+    - llama3.2
+    - nomic-embed-text
+
+# MinIO (file storage)
+minio:
+  endpoint: http://minio.lamar.edu:9000
+  bucket: iosme-uploads
+  credentialsSecret: iosme-minio-credentials
+
+# Monitoring
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+
+# Horizontal Pod Autoscaler
+hpa:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# Pod Disruption Budget
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# Liveness and Readiness probes
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 3
+
+# Built-in PostgreSQL (disabled in favor of external — kept for dev convenience)
+postgresql:
+  enabled: false
+
+# Built-in PgBouncer (disabled — managed externally)
+pgbouncer:
+  enabled: false

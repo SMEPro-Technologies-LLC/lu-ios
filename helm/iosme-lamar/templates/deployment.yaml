@@ -1,0 +1,180 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iosme-app
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app: iosme-app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "iosme-lamar.selectorLabels" . | nindent 6 }}
+      app: iosme-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "iosme-lamar.selectorLabels" . | nindent 8 }}
+        app: iosme-app
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "iosme-lamar.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: iosme
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.config.port | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: SESSION_DURATION_SECONDS
+              value: {{ .Values.config.sessionDurationSeconds | quote }}
+            - name: INFERENCE_PROVIDER
+              value: {{ .Values.config.inferenceProvider | quote }}
+            - name: ANTHROPIC_MODEL
+              value: {{ .Values.config.anthropicModel | quote }}
+            - name: OLLAMA_LLM_MODEL
+              value: {{ .Values.config.ollamaLlmModel | quote }}
+            - name: OLLAMA_EMBED_MODEL
+              value: {{ .Values.config.ollamaEmbedModel | quote }}
+            - name: BANNER_SYNC_INTERVAL_HOURS
+              value: {{ .Values.config.bannerSyncIntervalHours | quote }}
+            - name: BANNER_BASE_URL
+              value: {{ .Values.banner.baseUrl | quote }}
+            # Database
+            - name: DB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: DB_SSL_MODE
+              value: {{ .Values.database.sslMode | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.credentialsSecret }}
+                  key: {{ .Values.database.usernameKey }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.credentialsSecret }}
+                  key: {{ .Values.database.passwordKey }}
+            # Audit database
+            - name: AUDIT_DB_HOST
+              value: {{ .Values.auditDatabase.host | quote }}
+            - name: AUDIT_DB_NAME
+              value: {{ .Values.auditDatabase.name | quote }}
+            # Secrets
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.anthropicApiKey }}
+                  key: api-key
+                  optional: true
+            - name: JWT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.jwtSigningKey }}
+                  key: signing-key
+            # Banner OAuth
+            - name: BANNER_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.bannerOAuth }}
+                  key: client-id
+            - name: BANNER_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.bannerOAuth }}
+                  key: client-secret
+            - name: BANNER_TOKEN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.bannerOAuth }}
+                  key: token-url
+            # LTI
+            {{- if .Values.lti.enabled }}
+            - name: LTI_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.blackboardLti }}
+                  key: client-id
+            - name: LTI_DEPLOYMENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.blackboardLti }}
+                  key: deployment-id
+            - name: LTI_PLATFORM_ISSUER
+              value: {{ .Values.lti.platformIssuer | quote }}
+            {{- end }}
+            # Microsoft 365
+            {{- if .Values.microsoft365.enabled }}
+            - name: MS365_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.ms365OAuth }}
+                  key: tenant-id
+            - name: MS365_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.ms365OAuth }}
+                  key: client-id
+            - name: MS365_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.ms365OAuth }}
+                  key: client-secret
+            {{- end }}
+            # Ollama
+            {{- if .Values.ollama.enabled }}
+            - name: OLLAMA_BASE_URL
+              value: "http://iosme-ollama:{{ .Values.ollama.service.port }}"
+            {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
