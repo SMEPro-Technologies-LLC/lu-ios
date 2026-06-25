@@ -1,0 +1,31 @@
+# Calico GlobalNetworkPolicy (deployed alongside the Helm chart)
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: iosme-egress-external
+spec:
+  selector: app.kubernetes.io/managed-by == 'Helm'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        domains: ["api.anthropic.com"]
+        ports: [443]
+    - action: Allow
+      protocol: TCP
+      destination:
+        domains: ["graph.microsoft.com", "purview.microsoft.com"]
+        ports: [443]
+    - action: Allow
+      protocol: TCP
+      destination:
+        domains: ["*.blackboard.com"]  # Anthology SaaS domain
+        ports: [443]
+    - action: Allow
+      protocol: TCP
+      destination:
+        domains: ["*.intellidemia.com"]  # Concourse SaaS
+        ports: [443]
+    - action: Deny

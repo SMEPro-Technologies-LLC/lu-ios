@@ -1,0 +1,129 @@
+# templates/network-policies.yaml
+# Per §08 Banner Integrity and Embedding Store Classification clauses
+
+# --- Default Deny All Ingress ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+# --- Default Deny All Egress ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+
+# --- API Pods: Ingress from NGINX only, Egress to DB, Redis, Anthropic, Banner, Blackboard, Concourse, Microsoft ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-allow
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: ingress
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: cache
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to: []  # External endpoints
+      ports:
+        - protocol: TCP
+          port: 443
+      # IPs: api.anthropic.com, lamar.banner.domain, lamar.blackboard.domain, concourse.intellidemia.com, graph.microsoft.com
+      # Implemented via Calico GlobalNetworkPolicy or namespace-level with external IPs
+
+# --- Database Pods: Ingress from API/Worker only, NO internet egress ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-allow
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: database
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - protocol: TCP
+          port: 5432
+    - from:  # Banner replication source
+        - namespaceSelector:
+            matchLabels:
+              name: banner-replication  # Placeholder — actual Banner namespace TBD
+          podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432
+  egress:
+    - to: []  # Deny all internet egress from DB pods
+
+# --- GPU Pods: Ingress from API/Worker only, NO internet egress (sovereign inference) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gpu-allow
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: inference
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - protocol: TCP
+          port: 11434  # Ollama default
+  egress:
+    - to: []  # No internet egress — sovereign inference

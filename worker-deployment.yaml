@@ -1,0 +1,60 @@
+# templates/worker-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-worker
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}  # Default: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: worker
+    spec:
+      serviceAccountName: {{ include "iosme-lamar.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          command: ["celery"]
+          args: ["-A", "app.celery_app", "worker", "--concurrency=4", "--loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: iosme-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: iosme-db-credentials
+                  key: url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: iosme-redis-credentials
+                  key: url
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iosme-anthropic-api-key
+                  key: token
+          resources:
+            requests:
+              cpu: "0.5"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,80 @@
+# templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "iosme-lamar.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    compliance.lamar.edu/scope: education-only
+    compliance.lamar.edu/regimes: FERPA,SACSCOC,TitleIX,ADA508,TexasEdCode,AACSB,ABET
+
+---
+# templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iosme-config
+  namespace: {{ .Values.namespace }}
+data:
+  # === Feature Flags (per §08 Blockchain disabled clause) ===
+  IOS_FEATURE_ENABLE_PRECOGNITION: "true"
+  IOS_FEATURE_ENABLE_MAC: "true"
+  IOS_FEATURE_ENABLE_COMPLIANCE: "true"
+  IOS_FEATURE_ENABLE_SIMULATION: "true"
+  IOS_FEATURE_ENABLE_OBSERVABILITY: "true"
+  IOS_FEATURE_ENABLE_BLOCKCHAIN_ANCHOR: "false"   # §08: NEVER true without Provost CR
+  
+  # === Governance Thresholds ===
+  GOVERNANCE_SCORE_THRESHOLD: "0.75"
+  SAFE_AI_LADDER_CLEAR_THRESHOLD: "0"
+  SAFE_AI_LADDER_WARNING_THRESHOLD: "3"
+  SAFE_AI_LADDER_ADVISORY_THRESHOLD: "5"
+  SAFE_AI_LADDER_TIMEOUT_THRESHOLD: "8"
+  SAFE_AI_LADDER_BAN_THRESHOLD: "10"
+  SAFE_AI_LADDER_WINDOW_MINUTES: "5"
+  
+  # === Cryptographic Config (§08 Audit chain DR) ===
+  AUDIT_HASH_ALGORITHM: "SHA-256"
+  AUDIT_SIGNATURE_ALGORITHM: "ECDSA-secp256k1"
+  AUDIT_RETENTION_YEARS: "7"
+  AUDIT_MERKLE_ROLLUP_INTERVAL_MINUTES: "5"
+  
+  # === Embedding Store Classification (§08) ===
+  EMBEDDING_CLASSIFICATION: "PII-equivalent"
+  EMBEDDING_ENCRYPTION_AT_REST: "true"
+  EMBEDDING_ACCESS_LOGGED: "true"
+  EMBEDDING_EXTERNAL_RETRIEVAL: "false"
+  
+  # === Routing ===
+  API_BASE_PATH: "/v1/ai"
+  LTI_PROVIDER_PATH: "/lti/v1p3/launch"
+  
+  # === Banner Integrity (§08) ===
+  BANNER_DIRECT_MUTATION: "false"   # Hard guard — must be false in production
+  BANNER_WRITEBACK_CHANNEL: "ethos"  # All writes via Ellucian Ethos API
+  BANNER_HITL_APPROVAL_REQUIRED: "true"
+  BANNER_TRACEID_REQUIRED: "true"
+  BANNER_REPLICA_TABLES: "course_catalog,curriculum,program_affiliation,cip_codes"
+  
+  # === Copilot Audit-Only (§08) ===
+  COPILOT_INTERCEPTION_ENABLED: "false"   # Must NEVER be true
+  COPILOT_AUDIT_MODE: "post-execution"
+  COPILOT_AUDIT_SOURCE: "graph-purview"
+  
+  # === Compliance Scope (§08 Education-only) ===
+  UCO_VERTICAL_SCOPE: "education"
+  UCO_ACTIVE_REGIMES: "FERPA,SACSCOC,TitleIV,TitleIX,ADA508,TexasEdCode,AACSB,ABET"
+  UCO_RULE_COUNT: "35"
+  
+  # === Database ===
+  POSTGRES_VERSION: "15"
+  POSTGRES_DB: "iosme_uco"
+  POSTGRES_REPLICATION_MODE: "streaming"
+  
+  # === Redis ===
+  REDIS_VERSION: "7"
+  REDIS_AOF_ENABLED: "true"
+  REDIS_MAX_MEMORY_MB: "512"
+  REDIS_MAX_MEMORY_POLICY: "allkeys-lru"
