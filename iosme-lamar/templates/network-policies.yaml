@@ -1,0 +1,258 @@
+# =============================================================================
+# network-policies.yaml
+# Per §08 Banner Integrity and Embedding Store Classification clauses.
+#
+# NOTE: Standard Kubernetes NetworkPolicy does not support DNS-based egress
+# rules.  Fine-grained egress to named domains (Anthropic, Microsoft Graph,
+# Banner/Ethos, Blackboard, Concourse) requires a CNI that supports L7 policy
+# (e.g. Calico GlobalNetworkPolicy, Cilium L7 NetworkPolicy).
+# The Calico variant is provided as a comment block at the bottom of this file.
+# =============================================================================
+
+# --- Default deny all ingress to the namespace ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# --- Default deny all egress from the namespace ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+
+---
+# --- Allow DNS resolution for all pods (required for k8s service discovery) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# --- API pods: ingress from NGINX ingress controller only ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-allow
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # To PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+    # To Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: cache
+      ports:
+        - protocol: TCP
+          port: 6379
+    # To external HTTPS (Anthropic, Microsoft Graph, Banner Ethos, Blackboard, Concourse)
+    # TODO: Restrict to specific IPs/CIDRs using Calico GlobalNetworkPolicy (see below)
+    - ports:
+        - protocol: TCP
+          port: 443
+
+---
+# --- Worker pods: egress to DB, Redis, and external APIs ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-allow
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: cache
+      ports:
+        - protocol: TCP
+          port: 6379
+    - ports:
+        - protocol: TCP
+          port: 443
+
+---
+# --- Database pods: ingress from API/Worker only, NO internet egress ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-allow
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: database
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Inter-replica replication traffic
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+  egress:
+    # Replica-to-primary streaming replication
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# --- LTI service pods: ingress from NGINX, egress to DB ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lti-allow
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: lti-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Outbound to Blackboard LTI platform and Microsoft Entra ID
+    - ports:
+        - protocol: TCP
+          port: 443
+
+# =============================================================================
+# TODO: Replace the permissive port-443 egress rules above with Calico
+# GlobalNetworkPolicy blocks that restrict egress by domain, for example:
+#
+# apiVersion: projectcalico.org/v3
+# kind: GlobalNetworkPolicy
+# metadata:
+#   name: iosme-egress-external
+# spec:
+#   selector: app.kubernetes.io/managed-by == 'Helm'
+#   types:
+#     - Egress
+#   egress:
+#     - action: Allow
+#       protocol: TCP
+#       destination:
+#         domains: ["api.anthropic.com"]
+#         ports: [443]
+#     - action: Allow
+#       protocol: TCP
+#       destination:
+#         domains: ["graph.microsoft.com", "purview.microsoft.com"]
+#         ports: [443]
+#     - action: Allow
+#       protocol: TCP
+#       destination:
+#         domains: ["*.blackboard.com"]
+#         ports: [443]
+#     - action: Allow
+#       protocol: TCP
+#       destination:
+#         domains: ["*.intellidemia.com"]
+#         ports: [443]
+#     - action: Deny
+# =============================================================================

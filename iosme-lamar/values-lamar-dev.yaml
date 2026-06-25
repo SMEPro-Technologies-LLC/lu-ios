@@ -1,0 +1,131 @@
+# =============================================================================
+# values-lamar-dev.yaml — LAMAR UNIVERSITY DEVELOPMENT OVERRIDES
+# =============================================================================
+# Deploy with:
+#   helm install iosme-lamar-dev ./iosme-lamar \
+#     -f values-lamar-dev.yaml \
+#     --namespace iosme-dev --create-namespace
+#
+# This file reduces resource requests and replica counts for development /
+# integration testing environments.  Secret values should still be provided
+# via Vault or a local .env file — do NOT embed real credentials here.
+# =============================================================================
+
+namespace: iosme-dev
+
+api:
+  replicas: 1
+  image:
+    repository: ghcr.io/lamar-university/iosme-api
+    # TODO: Update tag for the dev image / branch build
+    tag: dev
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  service:
+    port: 8000
+
+worker:
+  replicas: 1
+  image:
+    repository: ghcr.io/lamar-university/iosme-worker
+    tag: dev
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+
+ltiService:
+  replicas: 1
+  image:
+    repository: ghcr.io/lamar-university/iosme-lti
+    tag: dev
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+  service:
+    port: 8080
+
+postgres:
+  # Use the default storage class available in the dev cluster
+  storageClass: standard
+  storageSize: 10Gi
+  nodeSelector: {}
+  tolerations: []
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClass: standard
+
+ingress:
+  enabled: true
+  className: nginx
+  # TODO: Replace with the actual dev FQDN or use nip.io for local testing
+  host: ios-lti-dev.lamar.edu
+  tls:
+    enabled: false
+    certManager: false
+    clusterIssuer: ""
+
+hpa:
+  enabled: false
+
+podDisruptionBudget:
+  # Disable PDB in dev to allow easier node drain
+  enabled: false
+  minAvailable: 1
+
+serviceAccount:
+  create: true
+  name: iosme-dev-sa
+  annotations: {}
+
+secrets:
+  # Use manual mode in dev for local testing; switch to vault for shared dev envs
+  source: manual
+  vault:
+    addr: "https://vault.lamar.edu:8200"
+    role: "iosme-dev"
+    path: "iosme-dev/data"
+
+compliance:
+  scope: education-only
+  regimes:
+    - FERPA
+    - SACSCOC
+    - TitleIX
+    - ADA508
+    - TexasEdCode
+    - AACSB
+    - ABET
+  bannerDirectMutation: false
+  copilotInterception: false
+  blockchainAnchor: false

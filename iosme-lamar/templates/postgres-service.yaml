@@ -1,0 +1,42 @@
+# Headless service — used by the StatefulSet for stable pod DNS names
+# (e.g. <release>-iosme-lamar-postgres-0.iosme-lamar-postgres-headless.<ns>.svc)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-postgres-headless
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "iosme-lamar.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+
+---
+# ClusterIP service — used by application pods to reach the primary replica
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-postgres
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "iosme-lamar.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
