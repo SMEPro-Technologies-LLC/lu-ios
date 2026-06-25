@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-lti-service
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: lti-service
+spec:
+  replicas: {{ .Values.ltiService.replicas }}
+  selector:
+    matchLabels:
+      {{- include "iosme-lamar.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: lti-service
+  template:
+    metadata:
+      labels:
+        {{- include "iosme-lamar.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: lti-service
+    spec:
+      serviceAccountName: {{ include "iosme-lamar.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: lti-service
+          image: "{{ .Values.ltiService.image.repository }}:{{ .Values.ltiService.image.tag }}"
+          imagePullPolicy: {{ .Values.ltiService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: iosme-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: iosme-db-credentials
+                  key: url
+            - name: LTI_JWS_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iosme-lti-keypair
+                  key: private-key
+            - name: LTI_JWS_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iosme-lti-keypair
+                  key: public-key
+          resources:
+            {{- toYaml .Values.ltiService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

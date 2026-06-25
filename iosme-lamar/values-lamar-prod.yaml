@@ -1,0 +1,141 @@
+# =============================================================================
+# values-lamar-prod.yaml — LAMAR UNIVERSITY PRODUCTION OVERRIDES
+# =============================================================================
+# Deploy with:
+#   helm install iosme-lamar ./iosme-lamar \
+#     -f values-lamar-prod.yaml \
+#     --namespace iosme --create-namespace
+#
+# All secret-backed values (DATABASE_URL, ANTHROPIC_API_KEY, etc.) are
+# managed by the External Secrets Operator pulling from HashiCorp Vault.
+# See secrets.vault section below.
+# =============================================================================
+
+namespace: iosme
+
+api:
+  replicas: 2
+  image:
+    repository: ghcr.io/lamar-university/iosme-api
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "1"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  service:
+    port: 8000
+
+worker:
+  replicas: 2
+  image:
+    repository: ghcr.io/lamar-university/iosme-worker
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "0.5"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+ltiService:
+  replicas: 1
+  image:
+    repository: ghcr.io/lamar-university/iosme-lti
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "0.25"
+      memory: "256Mi"
+    limits:
+      cpu: "0.5"
+      memory: "512Mi"
+  service:
+    port: 8080
+
+postgres:
+  storageClass: ios-san-fast
+  storageSize: 2Ti
+  nodeSelector:
+    node-role.kubernetes.io/db: "true"
+  tolerations:
+    - key: node-role.kubernetes.io/db
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "0.25"
+      memory: "512Mi"
+    limits:
+      cpu: "0.5"
+      memory: "512Mi"
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ios-san-standard
+
+ingress:
+  enabled: true
+  className: nginx
+  host: ios-lti.lamar.edu
+  tls:
+    enabled: true
+    certManager: true
+    clusterIssuer: lamar-letsencrypt-prod
+
+# HPA is disabled at Lamar scale until Phase 4 load testing is complete.
+hpa:
+  enabled: false
+  api:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  worker:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+serviceAccount:
+  create: true
+  name: iosme-sa
+  annotations: {}
+
+secrets:
+  source: vault
+  vault:
+    addr: "https://vault.lamar.edu:8200"
+    role: "iosme-prod"
+    path: "iosme/data"
+
+# §08 Compliance — hard constraints, do not change without Provost CR
+compliance:
+  scope: education-only
+  regimes:
+    - FERPA
+    - SACSCOC
+    - TitleIX
+    - ADA508
+    - TexasEdCode
+    - AACSB
+    - ABET
+  bannerDirectMutation: false
+  copilotInterception: false
+  blockchainAnchor: false

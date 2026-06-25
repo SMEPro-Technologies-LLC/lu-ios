@@ -1,0 +1,20 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-redis
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "iosme-lamar.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+{{- end }}

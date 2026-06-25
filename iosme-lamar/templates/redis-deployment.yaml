@@ -1,0 +1,94 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-redis
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  # Single instance with AOF persistence.
+  # TODO: Evaluate Redis Sentinel / Cluster for HA in Year 2.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "iosme-lamar.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: cache
+  template:
+    metadata:
+      labels:
+        {{- include "iosme-lamar.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: cache
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          ports:
+            - containerPort: 6379
+              name: redis
+              protocol: TCP
+          command: ["redis-server"]
+          args:
+            - "--appendonly"
+            - "yes"
+            - "--maxmemory"
+            - "512mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          {{- if .Values.redis.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "iosme-lamar.fullname" . }}-redis-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- if .Values.redis.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-redis-data
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: {{ .Values.redis.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.redis.persistence.size }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,51 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+# PodDisruptionBudget for the API Deployment
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-api-pdb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "iosme-lamar.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+
+---
+# PodDisruptionBudget for the Worker Deployment
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-worker-pdb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "iosme-lamar.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+
+---
+# PodDisruptionBudget for the LTI Service Deployment
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}-lti-pdb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    app.kubernetes.io/component: lti-service
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "iosme-lamar.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: lti-service
+{{- end }}
