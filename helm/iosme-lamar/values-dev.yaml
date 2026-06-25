@@ -1,0 +1,36 @@
+# Development overrides for iosme-lamar Helm chart
+
+replicaCount: 1
+
+ingress:
+  hosts:
+    - host: iosme-dev.lamar.edu
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: iosme-dev-tls
+      hosts:
+        - iosme-dev.lamar.edu
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+config:
+  logLevel: debug
+  inferenceProvider: anthropic
+
+database:
+  host: iosme-db-01.lamar.edu
+  name: iosme_dev
+
+ollama:
+  enabled: false
+
+pdb:
+  enabled: false

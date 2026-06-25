@@ -1,0 +1,33 @@
+# Staging overrides for iosme-lamar Helm chart
+
+replicaCount: 1
+
+ingress:
+  hosts:
+    - host: iosme-staging.lamar.edu
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: iosme-staging-tls
+      hosts:
+        - iosme-staging.lamar.edu
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+config:
+  logLevel: debug
+  inferenceProvider: ollama
+
+database:
+  host: iosme-db-01.lamar.edu
+  name: iosme_staging
+
+pdb:
+  enabled: false

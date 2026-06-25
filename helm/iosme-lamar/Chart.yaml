@@ -1,0 +1,30 @@
+apiVersion: v2
+name: iosme-lamar
+description: IOSME iOS Mobile Experience — Lamar University deployment
+type: application
+version: 2.5.0
+appVersion: "2.5.0"
+
+keywords:
+  - iosme
+  - lamar
+  - education
+  - mobile
+
+home: https://iosme.lamar.edu
+
+maintainers:
+  - name: SMEPro Technologies LLC
+    email: support@smepro.com
+  - name: Lamar University IT
+    email: devops@lamar.edu
+
+dependencies:
+  - name: postgresql
+    version: "13.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: pgbouncer
+    version: "1.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: pgbouncer.enabled

@@ -1,0 +1,130 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "iosme-lamar.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: iosme.application
+      interval: 30s
+      rules:
+        - alert: IOSMEAppDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              namespace="{{ .Release.Namespace }}",
+              deployment="iosme-app"
+            } == 0
+          for: 2m
+          labels:
+            severity: critical
+            namespace: {{ .Release.Namespace }}
+          annotations:
+            summary: "IOSME application is down"
+            description: "No available replicas for iosme-app in {{ .Release.Namespace }}"
+            runbook_url: "https://github.com/lamar-university/iosme-ops/blob/main/runbooks/02-helm-deploy-upgrade-rollback.md"
+
+        - alert: IOSMEHighErrorRate
+          expr: |
+            rate(http_requests_total{
+              namespace="{{ .Release.Namespace }}",
+              job="iosme-app",
+              status=~"5.."
+            }[5m])
+            /
+            rate(http_requests_total{
+              namespace="{{ .Release.Namespace }}",
+              job="iosme-app"
+            }[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+          annotations:
+            summary: "IOSME high HTTP error rate"
+            description: "HTTP 5xx rate is above 5% for the last 5 minutes"
+            runbook_url: "https://github.com/lamar-university/iosme-ops/blob/main/runbooks/02-helm-deploy-upgrade-rollback.md"
+
+    - name: iosme.database
+      interval: 60s
+      rules:
+        - alert: IOSMEPostgresReplicationLag
+          expr: |
+            pg_replication_lag{
+              job="postgres-exporter",
+              namespace="{{ .Release.Namespace }}"
+            } > 30
+          for: 5m
+          labels:
+            severity: critical
+            namespace: {{ .Release.Namespace }}
+          annotations:
+            summary: "PostgreSQL replication lag > 30 seconds"
+            description: "Replication lag is {{ "{{" }} $value {{ "}}" }}s"
+            runbook_url: "https://github.com/lamar-university/iosme-ops/blob/main/runbooks/03-postgres-replication-lag.md"
+
+    - name: iosme.gpu
+      interval: 60s
+      rules:
+        - alert: IOSMEGPUHighMemory
+          expr: |
+            (DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_TOTAL) > 0.90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "GPU memory utilization above 90%"
+            description: "GPU {{ "{{" }} $labels.gpu {{ "}}" }} memory usage is {{ "{{" }} $value | humanizePercentage {{ "}}" }}"
+            runbook_url: "https://github.com/lamar-university/iosme-ops/blob/main/runbooks/04-gpu-inference-failure.md"
+
+        - alert: IOSMEGPUDown
+          expr: |
+            kube_node_status_allocatable{
+              node="iosme-gpu-01",
+              resource="nvidia_com_gpu"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GPU node has no allocatable GPUs"
+            description: "iosme-gpu-01 is reporting 0 allocatable GPUs"
+            runbook_url: "https://github.com/lamar-university/iosme-ops/blob/main/runbooks/04-gpu-inference-failure.md"
+
+    - name: iosme.integrations
+      interval: 60s
+      rules:
+        - alert: IOSMEAnthropicAPIError
+          expr: |
+            rate(iosme_anthropic_api_errors_total{
+              namespace="{{ .Release.Namespace }}"
+            }[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            namespace: {{ .Release.Namespace }}
+          annotations:
+            summary: "Anthropic API error rate above 10%"
+            description: "Anthropic API errors at {{ "{{" }} $value | humanize {{ "}}" }} errors/sec"
+            runbook_url: "https://github.com/lamar-university/iosme-ops/blob/main/runbooks/07-anthropic-api-failure.md"
+
+    - name: iosme.audit
+      interval: 300s
+      rules:
+        - alert: IOSMEAuditChainIntegrity
+          expr: |
+            iosme_audit_chain_integrity_failures_total{
+              namespace="{{ .Release.Namespace }}"
+            } > 0
+          for: 1m
+          labels:
+            severity: critical
+            namespace: {{ .Release.Namespace }}
+          annotations:
+            summary: "IOSME audit chain integrity failure detected"
+            description: "{{ "{{" }} $value {{ "}}" }} hash verification failure(s) detected in the audit chain"
+            runbook_url: "https://github.com/lamar-university/iosme-ops/blob/main/runbooks/08-audit-chain-integrity.md"
+{{- end }}

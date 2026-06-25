@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iosme-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iosme-lamar.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  PORT: {{ .Values.config.port | quote }}
+  INFERENCE_PROVIDER: {{ .Values.config.inferenceProvider | quote }}
+  ANTHROPIC_MODEL: {{ .Values.config.anthropicModel | quote }}
+  OLLAMA_LLM_MODEL: {{ .Values.config.ollamaLlmModel | quote }}
+  OLLAMA_EMBED_MODEL: {{ .Values.config.ollamaEmbedModel | quote }}
+  BANNER_BASE_URL: {{ .Values.banner.baseUrl | quote }}
+  BANNER_SYNC_INTERVAL_HOURS: {{ .Values.config.bannerSyncIntervalHours | quote }}
+  LTI_ENABLED: {{ .Values.lti.enabled | quote }}
+  LTI_PLATFORM_ISSUER: {{ .Values.lti.platformIssuer | quote }}
+  MS365_ENABLED: {{ .Values.microsoft365.enabled | quote }}
+  MS365_TENANT_AUTHORITY: {{ .Values.microsoft365.tenantAuthority | quote }}
+  MS365_GRAPH_BASE_URL: {{ .Values.microsoft365.graphBaseUrl | quote }}
+  MS365_CALENDAR_SYNC: {{ .Values.microsoft365.features.calendarSync | quote }}
+  MS365_EMAIL_NOTIFICATIONS: {{ .Values.microsoft365.features.emailNotifications | quote }}
+  MS365_TEAMS_INTEGRATION: {{ .Values.microsoft365.features.teamsIntegration | quote }}
+  MINIO_ENDPOINT: {{ .Values.minio.endpoint | quote }}
+  MINIO_BUCKET: {{ .Values.minio.bucket | quote }}
