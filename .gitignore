@@ -1,0 +1,62 @@
+# Byte-order marks and Windows-style line endings
+*.bom
+*.bat
+
+# OS artifacts
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.orig
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfplan
+*.tfvars
+!*.tfvars.example
+
+# Helm
+*.tgz
+helm/iosme-lamar/charts/*.tgz
+iosme-lamar/charts/*.tgz
+.helm/
+
+# Secrets — never commit real credentials
+*.pem
+*.key
+*.pfx
+*.p12
+*.env
+.env.*
+!.env.example
+kubeconfig
+kubeconfig.*
+**/kubeconfig
+
+# Temporary / build artifacts
+*.tmp
+*.bak
+*.log
+dist/
+build/
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Shell script artifacts
+nohup.out

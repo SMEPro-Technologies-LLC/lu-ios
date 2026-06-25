@@ -1,0 +1,25 @@
+# CODEOWNERS
+#
+# Each line assigns a default reviewer for matching paths.
+# Patterns follow .gitignore syntax.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: SMEPro platform team owns everything not otherwise specified
+*                               @SMEPro-Technologies-LLC
+
+# Helm chart — vendor + university DevOps must both review
+/helm/                          @SMEPro-Technologies-LLC
+/iosme-lamar/                   @SMEPro-Technologies-LLC
+
+# Terraform / infrastructure — reviewed by both teams
+/terraform/                     @SMEPro-Technologies-LLC
+
+# Scripts — operations team
+/scripts/                       @SMEPro-Technologies-LLC
+
+# Documentation — both teams
+/docs/                          @SMEPro-Technologies-LLC
+/runbooks/                      @SMEPro-Technologies-LLC
+
+# Raw manifests
+/manifests/                     @SMEPro-Technologies-LLC
